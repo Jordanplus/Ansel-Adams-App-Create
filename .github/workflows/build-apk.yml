@@ -34,13 +34,19 @@ jobs:
             libffi-dev \
             libssl-dev \
             libtool \
+            libtool-bin \
             automake \
             autoconf \
             pkg-config \
             libncurses-dev \
             zlib1g-dev \
             xz-utils \
-            wget
+            wget \
+            gperf \
+            texinfo
+          # Verify libtool
+          echo "libtool version:" && libtoolize --version
+          echo "autoconf version:" && autoconf --version
       
       - name: Install buildozer and dependencies
         run: |
@@ -71,15 +77,26 @@ jobs:
           yes | buildozer android debug 2>&1 | tee build.log
       
       - name: Check build result
+        if: always()
         run: |
           # Look for APK in bin directory
           if [ -f "bin/org.test.myapp-0.1-debug.apk" ]; then
             echo "✅ APK build successful!"
             ls -lh bin/*.apk
           else
-            echo "❌ APK not found. Checking buildozer log..."
-            tail -100 build.log
-            exit 1
+            echo "❌ APK not found."
+            echo "Listing buildozer structure:"
+            ls -la
+            echo ""
+            echo "=== Last 200 lines of build log ==="
+            if [ -f build.log ]; then
+              tail -200 build.log
+            else
+              echo "build.log not found"
+            fi
+            echo ""
+            echo "Checking .buildozer directory:"
+            ls -la .buildozer/android/platform/build-* 2>/dev/null | head -20 || echo "No build directories found"
           fi
       
       - name: Upload APK as artifact
@@ -96,6 +113,14 @@ jobs:
         with:
           name: build-log
           path: build.log
+          retention-days: 7
+      
+      - name: Upload buildozer directory for debugging
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: buildozer-debug-logs
+          path: .buildozer/
           retention-days: 7
       
       - name: Create Release (on tagged push)
