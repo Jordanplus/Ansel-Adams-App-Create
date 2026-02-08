@@ -55,23 +55,11 @@ jobs:
       
       - name: Accept Android SDK licenses
         run: |
-          mkdir -p ~/.android
-          echo -e "\n\n\n\n\n\n\n\n" | java -version
-          ANDROID_SDK_ROOT=~/.buildozer/android/platform/android-sdk
-          if [ -d "$ANDROID_SDK_ROOT" ]; then
-            yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          fi
-      
-      - name: Accept Android SDK licenses
-        run: |
-          # Create SDK directory if it doesn't exist
-          mkdir -p ~/.android
-          # Accept all Android SDK licenses
-          yes | sudo apt-get install android-sdk-build-tools 2>/dev/null || true
-          # Try to accept licenses via sdkmanager if available
-          if command -v sdkmanager &> /dev/null; then
-            yes | sdkmanager --licenses || true
-          fi
+          mkdir -p ~/.android/licenses
+          # Create license agreement files with actual Android SDK license hashes
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > ~/.android/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131b33910" >> ~/.android/licenses/android-sdk-license
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" > ~/.android/licenses/android-sdk-preview-license
       
       - name: Download Noto Sans TC font
         run: |
@@ -86,8 +74,13 @@ jobs:
         run: |
           # Clean any previous builds
           rm -rf .buildozer
+          # Verify buildozer installation
+          which buildozer
+          buildozer --version
           # Display buildozer.spec for debugging
+          echo "=== buildozer.spec content ==="
           cat buildozer.spec | head -50
+          echo "=== END buildozer.spec ===" 
       
       - name: Build Android APK (debug)
         env:
@@ -96,11 +89,17 @@ jobs:
           ANDROID_SDK_ROOT: /home/runner/.buildozer/android/platform/android-sdk
           ANDROID_SDK_TOOLS_ROOT: /home/runner/.buildozer/android/platform/android-sdk/tools
         run: |
-          # Pre-accept licenses
-          mkdir -p ~/.android
-          echo -e "\n\n\n\n\n\n\n\nyes" | sdkmanager --licenses 2>&1 | tail -10
-          # Run buildozer
-          yes | buildozer android debug 2>&1 | tee build.log
+          # Pre-create Android SDK license acceptance directories
+          mkdir -p ~/.android/licenses
+          # Create license agreement files
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > ~/.android/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131b33910" >> ~/.android/licenses/android-sdk-license
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" > ~/.android/licenses/android-sdk-preview-license
+          # List licenses
+          echo "=== License files created ==="
+          ls -la ~/.android/licenses/
+          echo "=== Starting buildozer build ==="
+          timeout 3600 buildozer android debug 2>&1 | tee build.log
       
       - name: Check build result
         if: always()
