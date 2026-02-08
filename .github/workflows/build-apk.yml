@@ -1,0 +1,107 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libffi-dev \
+            libssl-dev \
+            libtool \
+            automake \
+            autoconf \
+            pkg-config \
+            libncurses-dev \
+            zlib1g-dev \
+            xz-utils \
+            wget
+      
+      - name: Install buildozer and dependencies
+        run: |
+          pip install --upgrade pip
+          pip install buildozer cython==0.29.33
+      
+      - name: Download Noto Sans TC font
+        run: |
+          mkdir -p assets/fonts
+          wget -q -O assets/fonts/NotoSansCJKtc-Regular.otf \
+            https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/TraditionalChinese/NotoSansCJKtc-Regular.otf
+      
+      - name: Configure Buildozer settings
+        env:
+          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+          _JAVA_OPTIONS: "-Xmx4g"
+        run: |
+          # Clean any previous builds
+          rm -rf .buildozer
+          # Display buildozer.spec for debugging
+          cat buildozer.spec | head -50
+      
+      - name: Build Android APK (debug)
+        env:
+          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+          _JAVA_OPTIONS: "-Xmx4g"
+        run: |
+          yes | buildozer android debug 2>&1 | tee build.log
+      
+      - name: Check build result
+        run: |
+          # Look for APK in bin directory
+          if [ -f "bin/org.test.myapp-0.1-debug.apk" ]; then
+            echo "✅ APK build successful!"
+            ls -lh bin/*.apk
+          else
+            echo "❌ APK not found. Checking buildozer log..."
+            tail -100 build.log
+            exit 1
+          fi
+      
+      - name: Upload APK as artifact
+        if: success()
+        uses: actions/upload-artifact@v3
+        with:
+          name: android-apk-debug
+          path: bin/*.apk
+          retention-days: 7
+      
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-log
+          path: build.log
+          retention-days: 7
+      
+      - name: Create Release (on tagged push)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: bin/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
