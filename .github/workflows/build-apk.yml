@@ -53,6 +53,26 @@ jobs:
           pip install --upgrade pip
           pip install buildozer cython==0.29.33
       
+      - name: Accept Android SDK licenses
+        run: |
+          mkdir -p ~/.android
+          echo -e "\n\n\n\n\n\n\n\n" | java -version
+          ANDROID_SDK_ROOT=~/.buildozer/android/platform/android-sdk
+          if [ -d "$ANDROID_SDK_ROOT" ]; then
+            yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          fi
+      
+      - name: Accept Android SDK licenses
+        run: |
+          # Create SDK directory if it doesn't exist
+          mkdir -p ~/.android
+          # Accept all Android SDK licenses
+          yes | sudo apt-get install android-sdk-build-tools 2>/dev/null || true
+          # Try to accept licenses via sdkmanager if available
+          if command -v sdkmanager &> /dev/null; then
+            yes | sdkmanager --licenses || true
+          fi
+      
       - name: Download Noto Sans TC font
         run: |
           mkdir -p assets/fonts
@@ -73,7 +93,13 @@ jobs:
         env:
           JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
           _JAVA_OPTIONS: "-Xmx4g"
+          ANDROID_SDK_ROOT: /home/runner/.buildozer/android/platform/android-sdk
+          ANDROID_SDK_TOOLS_ROOT: /home/runner/.buildozer/android/platform/android-sdk/tools
         run: |
+          # Pre-accept licenses
+          mkdir -p ~/.android
+          echo -e "\n\n\n\n\n\n\n\nyes" | sdkmanager --licenses 2>&1 | tail -10
+          # Run buildozer
           yes | buildozer android debug 2>&1 | tee build.log
       
       - name: Check build result
